@@ -61,8 +61,6 @@ def getASN() {
     trace("Running getASN")
     // logDebug("CurrentURI: ${currentURI}")
 
-    //state.remove("director")
-
     // Create base parameters
     def cmdParams = [
         uri: "https://director.myenergi.net",
@@ -76,7 +74,6 @@ def getASN() {
         trace("Adding auth header")
         // if the nonce value exists and it isn't stale then add digest response
         authstring = calcDigestAuth("director",cmdParams.path)
-        //authstring = '"Digest username="11018977", realm="myenergi App Server", qop="auth", algorithm="MD5", uri="/cgi-jstatus-*", nonce="000352300000000000153E4B00000000000ACBCD9B8C5EADF4736D49AC46FB3A06F41376FE66AA9D553D5B88CF5345C7", cnonce="78cac77b", opaque="0000001000000000000000010000000000000000F72EA4235F52AC351E9B7C570E23BFBF27498847B4A66D648D846013", nc=, response="38b39e312402788437babe20287f2d1c"'
         authheader = ['Authorization':authstring]
         cmdParams.put('headers',authheader)
         
@@ -146,15 +143,17 @@ private String calcDigestAuth(statetype,digestPath) {
     
 	// increase nc every request by one
 	if(!state.nc) {
-        trace("Shouldn't be here")
+        trace("resetting nc")
         state.nc = 1
     } else {
         state.nc = state.nc + 1
     }
     
     // select correct digestmap
-    if (statetype == "director") {
-        digestmap = state.director
+    switch(statetype) {
+        case "director":
+            digestmap = state.director
+            break
     }
     
     // create the response MD5 hash
@@ -164,9 +163,9 @@ private String calcDigestAuth(statetype,digestPath) {
 	def response = "${HA1}:" + digestmap.nonce + ":" + state.nc + ":" + cnonce + ":" + digestmap.qop + ":${HA2}"
 	def response_enc = hashMD5(response)
 
-	trace("HA1: " + HA1 + " ===== orig:" + "${hubUsername}:" + digestmap.realm.trim() + ":${hubPassword}")
-	trace("HA2: " + HA2 + " ===== orig:" + "GET:${digestPath}")
-	trace("Response: " + response_enc + " =====   orig:" + response)
+	logDebug("HA1: " + HA1 + " ===== orig:" + "${hubUsername}:" + digestmap.realm.trim() + ":${hubPassword}")
+	logDebug("HA2: " + HA2 + " ===== orig:" + "GET:${digestPath}")
+	logDebug("Response: " + response_enc + " =====   orig:" + response)
 	
 	def eol = " "
 
