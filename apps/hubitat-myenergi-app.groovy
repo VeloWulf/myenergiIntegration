@@ -32,34 +32,73 @@ definition (
 
 preferences {
     page(name:"mainPage")
+    page(name:"devicePage")
 }
 
 def mainPage() {
-    dynamicPage(name:"HubLoginDetails",title:"myenergi Login Details",install:true,uninstall:true) {
+    state.remove("director")
+    //state.remove("nc")
+    
+    //dynamicPage(name:"HubLoginDetails",title:"myenergi Login Details",,install:true,uninstall:true) {
+    dynamicPage(name:"HubLoginDetails",title:"myenergi Login Details",nextPage:"devicePage",install:false,uninstall:true) {
         section ("Login Details") {
             input "hubUsername", "text", title:"Enter User Name:", required:true
             input "hubPassword", "password", title:"Enter Password", required:true
             input "debugOutput", "bool", title: "Enable debug logging", defaultValue: false
         }
-        state.remove("director")
-        //state.remove("nc")
-        def devices = getDeviceList()
-        trace("End of code")
+        
+        //def devices = getDeviceList()
+        //trace("End of code")
         //log.info(devices)
     }
 }
 
+def devicePage() {
+    def availableDevices = getDeviceList()
+
+    dynamicPage(name:"DeviceSelection",title:"Select devices to be managed",install:true,uninstall:false) {
+        section ("Devices") {
+            paragraph "Select the devices to be managed from the list below"
+            input "devicesToManage","enum",title:"Which devices do you want to manage?",multiple:true,required:true,options:availableDevices,submitOnChange:false
+        }
+    }
+}
+
 def getDeviceList() {
-    // state.auth = "empty"
-    def currentURI = getASN()
-    logDebug("Current URI = ${currentURI}")
+    trace("Running getDeviceList")
+
+    def currentURI = ""
+
+    if (!state.latestASN || state.latestASN == "") {
+        currentURI = getASN()
+
+        def cmdParams = [
+        uri: "https://" + currentURI,
+        path: "/cgi-jstatus-*",
+        //requestContentType: "application/json",
+        // contentType:"application/json",
+        timeout:300
+        ]
+
+        state.asnauth = getAuthMap(cmdParams)
+        
+    } else {
+        currentURI = state.latestASN
+        logDebug("Current URI = ${currentURI}")
+    }
+    
+    devices = pollASNServer(currentURI,"/cgi-jstatus-*")
 }
 
 
-// This function will interrogate the Director server and obtain the BaseURI for commands. Initially set to return known URI - TO DO
+// This function will interrogate the Director server and obtain the ASN for commands
 def getASN() {
     trace("Running getASN")
     // logDebug("CurrentURI: ${currentURI}")
+
+    def authstring = ""
+    def authmap = [:]
+    def asn = ""
 
     // Create base parameters
     def cmdParams = [
@@ -70,18 +109,144 @@ def getASN() {
         timeout:300
     ]
 
-    if(state.director) {
-        trace("Adding auth header")
-        // if the nonce value exists and it isn't stale then add digest response
-        authstring = calcDigestAuth("director",cmdParams.path)
-        authheader = ['Authorization':authstring]
-        cmdParams.put('headers',authheader)
-        
+    // make an initial call to the director server to obtain the nonce
+    authmap = getAuthMap(cmdParams)
+    
+    // create the digest token based on the nonce returned from the director
+    trace("Adding auth header")
+    
+    digeststring = calcDigestAuth(authmap,cmdParams.path)
+    authheader = ['Authorization':digeststring]
+    cmdParams.put('headers',authheader)
+    logDebug("Auth Command parameters = ${cmdParams}")
+
+    // finish by passing the digest token to the director server and obtaining the ASN server from the header
+    try {
+        httpGet(cmdParams) {resp -> 
+            if (resp.success) {
+                log.error "Unxpected succesful call to director server - please troubleshoot"
+                return null
+            }
+        }
+    }
+    catch (Exception e) {
+        logDebug("AuthMap Response Status = ${e.getResponse().getStatus()}")
+        logDebug("AuthMap Response Headers = ${e.getResponse().getAllHeaders()}")
+
+        if(e.getResponse().getStatus() == 401) {
+            // this 401 should happen even though auth has been successful
+            latestASN = e.getResponse().headers.'X_myenergi-asn'
+            logDebug("LatestASN = ${latestASN}")
+
+            if(latestASN) {
+                return latestASN
+            } else {
+                log.error "Authentication failed on the director server"
+            }
+
+            
+        }
     }
 
-    logDebug("Command parameters = ${cmdParams}")
-    asyncRequest(cmdParams,"ASN")    
+    
+    // asyncRequest(cmdParams,"ASN")    
 }
+
+def getAuthMap(cmdParams) {
+    try {
+        httpGet(cmdParams) {resp -> 
+            if (resp.success) {
+                // this should never happen - we are expecting a 401
+                log.error "Unxpected succesful authmap call to server - please troubleshoot"
+                return null
+            }
+        }
+    }
+    catch (Exception e) {
+        logDebug("AuthMap Response Status = ${e.getResponse().getStatus()}")
+        logDebug("AuthMap Response Headers = ${e.getResponse().getAllHeaders()}")
+
+        if(e.getResponse().getStatus() == 401) {
+            // the 401 return code indicates that the server requires the digest token
+            authstring = e.getResponse().headers.'www-authenticate'
+            logDebug("Authorization = ${authstring}")
+
+            authmap = authstring.replaceAll("Digest ", "").replaceAll(", ", ",").replaceAll("\"", "").findAll(/([^,=]+)=([^,]+)/) { full, name, value -> [name, value] }.collectEntries( { it })
+            logDebug("Auth Map = ${authmap}")
+
+            // write the returned authmap to the director state variable (only done for 401 - new nonce is provided)
+            //state.director = authmap - may not need this
+            return authmap
+        }
+    }
+}
+
+def pollASNServer(asnServer,asnPath = "/cgi-jstatus-*") {
+    // TO DO should get a 200 (success) but if a 401 is received then check to see if stale record (exists and) is true
+    // TO DO might get a 401 (in which case check header record and run authmap and poll against new server) 
+    // or a 200 in which case use the data but update asnauth state var from the asn field in returned data
+
+    def cmdParams = [
+        uri: "https://" + asnServer,
+        path: asnPath,
+        //requestContentType: "application/json",
+        // contentType:"application/json",
+        timeout:300
+    ]
+
+    if(!state.asnauth) {
+        state.asnauth = getAuthMap(cmdParams)
+    }
+    
+    digeststring = calcDigestAuth(state.asnauth,cmdParams.path)
+    authheader = ['Authorization':digeststring]
+    cmdParams.put('headers',authheader)
+    logDebug("Auth Command parameters = ${cmdParams}")
+    
+    try {
+        httpGet(cmdParams) {resp->
+            if(resp.success) {
+                logDebug("Response = ${resp.data}")
+                logDebug("Headers = ${resp?.getAllHeaders()}")
+                def devices = []
+                def newASN = ""
+                def desiredDevices = ["eddi","zappi","harvi"]  // other key values are returned but we only want the main device types in the list
+                // the returned values are in nested maps so we need to parse out the values
+                resp.data.each {first ->
+                    first.each{second ->
+                        if(desiredDevices.contains(second.key)) {
+                            logDebug(second.key + " has a size of " + second.value.size())
+                            // a value higher than 1 means that there is a map for this key - therefore the device is active
+                            if(second.value.size() >0) { devices << second.key }
+                            logDebug(devices)
+                        }
+                        // grabbing the asn value for comparison
+                        if(second.key == "asn")  {
+                            newASN = second.value
+                        }
+                    }
+                }
+                logDebug(devices)
+
+                // compare the new ASN value in the returned body to that provided to the function. If different store the new value and wipe the state auth details
+                logDebug("Old ASN = ${asnServer} and new ASN = ${newASN}")
+                if(newASN != asnServer) {
+                    trace("different ASN")
+                    state.latestASN = newASN
+                    state.remove("asnauth")
+                }
+                return devices   
+            } 
+        }
+    }
+    catch (Exception e) {
+        //TO DO look for a 401 and then obtain the x_myenergi-asn header, store in state var and rerun the try else do the below code
+        logDebug("Exception in pollASNServer call: ${e.message}")
+        return false
+    }
+}
+
+
 
 def asyncRequest(cmdParams,requesttype) {
     trace("Running asyncRequest")
@@ -96,10 +261,9 @@ def asyncRequest(cmdParams,requesttype) {
 
 def handler(response,data) {
     trace("Running handler")
-    // TO DO need to check if the nonce is stale
-    // if it is stale then redo request with new nonce (need separate function)
-    // next check to see if ASN exists
-    
+    // TO DO need to check if the nonce is stale (need separate function)
+    // if it is stale then redo request with new nonce 
+        
     logDebug("Return Type = ${data.returntype}")
     logDebug("Response Status = ${response?.getStatus()}")
 
@@ -136,10 +300,10 @@ def handler(response,data) {
 
 
 // calculate digest token, more details: http://en.wikipedia.org/wiki/Digest_access_authentication#Overview
-private String calcDigestAuth(statetype,digestPath) {
+private String calcDigestAuth(digestmap,digestPath) {
     trace("calcDigest")
     
-    def digestmap = [:]
+    //def digestmap = [:]
     
 	// increase nc every request by one
 	if(!state.nc) {
@@ -149,12 +313,14 @@ private String calcDigestAuth(statetype,digestPath) {
         state.nc = state.nc + 1
     }
     
-    // select correct digestmap
+    /*// select correct digestmap
     switch(statetype) {
         case "director":
             digestmap = state.director
+            logDebug("Digest Map = ${digestmap}")
+            logDebug("test value = ${digestmap.nonce}")
             break
-    }
+    }*/
     
     // create the response MD5 hash
     def HA1 = hashMD5("${hubUsername}:" + digestmap.realm + ":${hubPassword}")
@@ -211,4 +377,17 @@ def updated() {
 }
 
 def uninstalled() {
+}
+
+def displayHeader() {
+	section (getFormat("title", "Myenergi Integration")) {
+		paragraph getFormat("line")
+	}
+}
+
+def displayFooter(){
+	section() {
+		paragraph getFormat("line")
+		paragraph "<div style='color:#1A77C9;text-align:center'>Myenergi Integration<br><a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'><img src='https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg' border='0' alt='PayPal Logo'></a><br><br>Please consider donating. This app took a lot of work to make.<br>If you find it valuable, I'd certainly appreciate it!</div>"
+	}
 }
