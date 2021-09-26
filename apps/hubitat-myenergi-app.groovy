@@ -61,6 +61,10 @@ def devicePage() {
             paragraph "Select the devices to be managed from the list below"
             input "devicesToManage","enum",title:"Which devices do you want to manage?",multiple:true,required:true,options:availableDevices,submitOnChange:false
         }
+        // TODO add the section for scheduling
+        section ("Refresh") {
+            input "refreshRate","enum",title:"Refresh rate in minutes (defaults to 60)",multiple:false,required:false,options:[30,60,120,300,720],submitOnChange:false
+        }
     }
 }
 
@@ -76,7 +80,7 @@ def getDeviceList() {
         uri: "https://" + currentURI,
         path: "/cgi-jstatus-*",
         //requestContentType: "application/json",
-        // contentType:"application/json",
+        //contentType:"application/json",
         timeout:300
         ]
 
@@ -87,7 +91,36 @@ def getDeviceList() {
         logDebug("Current URI = ${currentURI}")
     }
     
-    devices = pollASNServer(currentURI,"/cgi-jstatus-*")
+    devicesToParse = pollASNServer(currentURI,"/cgi-jstatus-*")
+    logDebug("Devices to parse = ${devicesToParse}")
+    
+    def devices = []
+    def newASN = ""
+    def desiredDevices = ["eddi","zappi","harvi"]  // other key values are returned but we only want the main device types in the list
+    // the returned values are in nested maps so we need to parse out the values
+    devicesToParse.each {first ->
+        first.each{second ->
+            if(desiredDevices.contains(second.key)) {
+                logDebug(second.key + " has a size of " + second.value.size())
+                // a value higher than 1 means that there is a map for this key - therefore the device is active
+                if(second.value.size() >0) { devices << second.key }
+                logDebug(devices)
+            }
+            // grabbing the asn value for comparison
+            if(second.key == "asn")  {
+                trace("Grabbing asn")
+                newASN = second.value
+            }
+        }
+    }
+
+    //TODO play around with the idea in this https://community.hubitat.com/t/json-map-conversion-fun/73303 to see if above is easier
+    
+    logDebug(devices)
+
+    // compare the new ASN value in the returned body to that provided to the function. If different store the new value and wipe the state auth details
+    compareASN(newASN,currentURI)
+    return devices   
 }
 
 
@@ -182,15 +215,14 @@ def getAuthMap(cmdParams) {
 }
 
 def pollASNServer(asnServer,asnPath = "/cgi-jstatus-*") {
-    // TO DO should get a 200 (success) but if a 401 is received then check to see if stale record (exists and) is true
-    // TO DO might get a 401 (in which case check header record and run authmap and poll against new server) 
-    // or a 200 in which case use the data but update asnauth state var from the asn field in returned data
+    // TODO should get a 200 (success) but if a 401 is received then check to see if stale record (exists and) is true
+    // TODO might get a 401 (in which case check header record and run authmap and poll against new server) 
 
     def cmdParams = [
         uri: "https://" + asnServer,
         path: asnPath,
-        //requestContentType: "application/json",
-        // contentType:"application/json",
+        contentType:"application/json",
+        //textParser:true,
         timeout:300
     ]
 
@@ -208,45 +240,37 @@ def pollASNServer(asnServer,asnPath = "/cgi-jstatus-*") {
             if(resp.success) {
                 logDebug("Response = ${resp.data}")
                 logDebug("Headers = ${resp?.getAllHeaders()}")
-                def devices = []
-                def newASN = ""
-                def desiredDevices = ["eddi","zappi","harvi"]  // other key values are returned but we only want the main device types in the list
-                // the returned values are in nested maps so we need to parse out the values
-                resp.data.each {first ->
-                    first.each{second ->
-                        if(desiredDevices.contains(second.key)) {
-                            logDebug(second.key + " has a size of " + second.value.size())
-                            // a value higher than 1 means that there is a map for this key - therefore the device is active
-                            if(second.value.size() >0) { devices << second.key }
-                            logDebug(devices)
-                        }
-                        // grabbing the asn value for comparison
-                        if(second.key == "asn")  {
-                            newASN = second.value
-                        }
-                    }
-                }
-                logDebug(devices)
+                
+                def result = [:]
 
-                // compare the new ASN value in the returned body to that provided to the function. If different store the new value and wipe the state auth details
-                logDebug("Old ASN = ${asnServer} and new ASN = ${newASN}")
-                if(newASN != asnServer) {
-                    trace("different ASN")
-                    state.latestASN = newASN
-                    state.remove("asnauth")
-                }
-                return devices   
+                result = resp.data
+                return result   
             } 
         }
     }
     catch (Exception e) {
-        //TO DO look for a 401 and then obtain the x_myenergi-asn header, store in state var and rerun the try else do the below code
+        //TODO look for a 401 and then obtain the x_myenergi-asn header, store in state var and rerun the try else do the below code
         logDebug("Exception in pollASNServer call: ${e.message}")
         return false
     }
 }
 
+def compareASN(newASN,oldASN) {
+    trace("Running compareASN")
+    logDebug("Old ASN = ${oldASN} and new ASN = ${newASN}")
+    
+    // compare the new ASN value in the returned body to that provided to the function. If different store the new value and wipe the state auth details
+    if(newASN != oldASN) {
+        trace("different ASN")
+        state.latestASN = newASN
+        state.remove("asnauth")
+    }
+}
 
+def parseData(dataToParse) {
+    trace{"Running parseData"}
+    result = dataToParse.substring(2,dataToParse.length()-2)
+}
 
 def asyncRequest(cmdParams,requesttype) {
     trace("Running asyncRequest")
@@ -301,7 +325,7 @@ def handler(response,data) {
 
 // calculate digest token, more details: http://en.wikipedia.org/wiki/Digest_access_authentication#Overview
 private String calcDigestAuth(digestmap,digestPath) {
-    trace("calcDigest")
+    trace("Running calcDigest")
     
     //def digestmap = [:]
     
@@ -371,6 +395,8 @@ private logDebug(msg, trace = false) {
 
 
 def installed() {
+    trace("Installation started")
+    
 }
 
 def updated() {
