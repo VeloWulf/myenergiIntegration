@@ -1,5 +1,5 @@
 /**
- *  myenergi Device Handler
+ *  myenergi Integration for Hubitat
  *
  *  Copyright 2021 Paul Hutton
  *
@@ -35,8 +35,26 @@ preferences {
     page(name:"devicePage")
 }
 
+// static variables
+def getChildNamespace () {return "velowulf"}
+def getChildTypeName (group) {
+    switch (group) {
+        case "eddi":
+            return "myenergi eddi device"
+            break
+        case "zappi":
+            return "myenergi zappi device"
+            break
+        case "harvi":
+            return "myenergi harvi device"
+            break
+        
+    }
+}
+
+
 def mainPage() {
-    state.remove("director")
+    //state.remove("director")
     //state.remove("nc")
     
     //dynamicPage(name:"HubLoginDetails",title:"myenergi Login Details",,install:true,uninstall:true) {
@@ -56,6 +74,23 @@ def mainPage() {
 def devicePage() {
     def availableDevices = getDeviceList()
 
+    logDebug("availableDevices = ${availableDevices}")
+    availableDevices.each {dni ->
+        def devGroup = ""
+        def devID = ""
+        
+        // for whatever reason I cannot stop these variables from being created as lists
+        // so the code uses a temp variable as a stop gap and uses the first element of the extracted value to set to a string variable
+        // - any help here on how to extract them as strings without the intermediate step would be appreciated
+        temp = dni.findAll(/^([^\s]+)/)
+        devGroup = temp[0]
+        temp = dni.findAll(/[0-9]+/)
+        devID = temp[0]
+
+        logDebug("devGroup = ${devGroup} ----- devID = ${devID}")
+        logDebug(state[devGroup])
+    }
+
     dynamicPage(name:"DeviceSelection",title:"Select devices to be managed",install:true,uninstall:false) {
         section ("Devices") {
             paragraph "Select the devices to be managed from the list below"
@@ -63,7 +98,15 @@ def devicePage() {
         }
         // TODO add the section for scheduling
         section ("Refresh") {
-            input "refreshRate","enum",title:"Refresh rate in minutes (defaults to 60)",multiple:false,required:false,options:[30,60,120,300,720],submitOnChange:false
+            input (
+                name:"refreshRate",
+                type:"enum",
+                title:"Refresh rate in minutes (defaults to 15)",
+                multiple:false,
+                required:false,
+                options:[1,5,10,15,30,60,180],
+                submitOnChange:false
+            )
         }
     }
 }
@@ -73,56 +116,52 @@ def getDeviceList() {
 
     def currentURI = ""
 
-    if (!state.latestASN || state.latestASN == "") {
-        currentURI = getASN()
+    currentURI = getCurrentURI()
 
-        def cmdParams = [
-        uri: "https://" + currentURI,
-        path: "/cgi-jstatus-*",
-        //requestContentType: "application/json",
-        //contentType:"application/json",
-        timeout:300
-        ]
-
-        state.asnauth = getAuthMap(cmdParams)
+    pollASNServer(currentURI,"/cgi-jstatus-*")
         
-    } else {
-        currentURI = state.latestASN
-        logDebug("Current URI = ${currentURI}")
-    }
-    
-    devicesToParse = pollASNServer(currentURI,"/cgi-jstatus-*")
-    logDebug("Devices to parse = ${devicesToParse}")
-    
-    def devices = []
+    //def devicesList = []
+    def devicesList = []
     def newASN = ""
-    def desiredDevices = ["eddi","zappi","harvi"]  // other key values are returned but we only want the main device types in the list
+    //def desiredDevices = ["eddi","zappi","harvi"]  // other key values are returned but we only want the main device types in the list
+
     // the returned values are in nested maps so we need to parse out the values
-    devicesToParse.each {first ->
-        first.each{second ->
-            if(desiredDevices.contains(second.key)) {
-                logDebug(second.key + " has a size of " + second.value.size())
-                // a value higher than 1 means that there is a map for this key - therefore the device is active
-                if(second.value.size() >0) { devices << second.key }
-                logDebug(devices)
-            }
-            // grabbing the asn value for comparison
-            if(second.key == "asn")  {
-                trace("Grabbing asn")
-                newASN = second.value
-            }
+    eddiMap = state.eddi
+    logDebug("eddiMap = ${eddiMap}")
+    logDebug("eddimap size = ${eddiMap.size}")
+    if (eddiMap.size > 0) {
+        eddiMap.each {valuesMap ->
+            logDebug("ValuesMap = $valuesMap}")
+            devicesList << "eddi (serial number:${valuesMap.sno})"
+        }
+    }
+    zappiMap = state.zappi
+    logDebug("zappimap size = ${zappiMap.size}")
+    if (zappiMap.size > 0) {
+        eddiMap.each {valuesMap ->
+            logDebug("ValuesMap = $valuesMap}")
+            devicesList << "zappi (serial number:${valuesMap.sno})"
+        }
+    }
+    harviMap = state.harvi
+    logDebug("harvimap size = ${harviMap.size}")
+    if (zappiMap.size > 0) {
+        eddiMap.each {valuesMap ->
+            logDebug("ValuesMap = $valuesMap}")
+            devicesList << "harvi (serial number:${valuesMap.sno})"
         }
     }
 
-    //TODO play around with the idea in this https://community.hubitat.com/t/json-map-conversion-fun/73303 to see if above is easier
-    
-    logDebug(devices)
-
-    // compare the new ASN value in the returned body to that provided to the function. If different store the new value and wipe the state auth details
-    compareASN(newASN,currentURI)
-    return devices   
+    logDebug(devicesList)
+    return devicesList   
 }
 
+def parseAllDevices (devicesToParse) {
+    trace("Parsing all devices")
+    state.eddi = devicesToParse[0].eddi
+    state.zappi = devicesToParse[1].zappi
+    state.harvi = devicesToParse[2].harvi
+}
 
 // This function will interrogate the Director server and obtain the ASN for commands
 def getASN() {
@@ -172,6 +211,7 @@ def getASN() {
             logDebug("LatestASN = ${latestASN}")
 
             if(latestASN) {
+                state.latestASN = latestASN
                 return latestASN
             } else {
                 log.error "Authentication failed on the director server"
@@ -244,6 +284,7 @@ def pollASNServer(asnServer,asnPath = "/cgi-jstatus-*") {
                 def result = [:]
 
                 result = resp.data
+                if(asnPath == "/cgi-jstatus-*") {parseAllDevices(result)}
                 return result   
             } 
         }
@@ -267,9 +308,30 @@ def compareASN(newASN,oldASN) {
     }
 }
 
-def parseData(dataToParse) {
-    trace{"Running parseData"}
-    result = dataToParse.substring(2,dataToParse.length()-2)
+def getCurrentURI() {
+    trace("Obtaining current asn server")
+    def currentURI = ""
+
+    if (!state.latestASN || state.latestASN == "") {
+        currentURI = getASN()
+
+        def cmdParams = [
+        uri: "https://" + currentURI,
+        path: "/cgi-jstatus-*",
+        //requestContentType: "application/json",
+        //contentType:"application/json",
+        timeout:300
+        ]
+
+        state.asnauth = getAuthMap(cmdParams)
+        
+    } else {
+        // TODO add a time check
+        currentURI = state.latestASN
+        logDebug("Current URI = ${currentURI}")
+    }
+
+    return currentURI
 }
 
 def asyncRequest(cmdParams,requesttype) {
@@ -391,18 +453,46 @@ private logDebug(msg, trace = false) {
     }
 }
 
-
-
-
 def installed() {
     trace("Installation started")
-    
+    logDebug("Settings = ${settings}")
+    // TODO subscribe to schedule for refreshing all devices
+
+    createDevices()
 }
 
 def updated() {
+    trace("Update started")
+    
+    createDevices()
 }
 
 def uninstalled() {
+}
+
+def createDevices() {
+    devicesToManage.each {dni ->
+        def devGroup = ""
+        def devID = ""
+
+        // for whatever reason I cannot stop these variables from being created as lists
+        // so I must use the first element of the extracted value and set to a string variable
+        // - any help here on how to extract them as strings would be appreciated
+        temp = dni.findAll(/^([^\s]+)/)
+        devGroup = temp[0]
+        temp = dni.findAll(/[0-9]+/)
+        devID = temp[0]
+        
+        logDebug("devGroup = ${devGroup} ----- devID = ${devID}")
+        
+        d = getChildDevice(devID) // find devices with the current network ID
+        if (!d) { //the return is empty so no device exists so add it
+            newChild = addChildDevice(getChildNamespace(), getChildTypeName(devGroup), devID, [name:dni,isComponent:false])
+            log.info "Created a new ${newChild.displayName} with id ${devID}"
+        } else { //inform user that the device already exists
+            log.warn "device with id ${devID} already exists - device has not been (re)created"
+        }
+    }
 }
 
 def displayHeader() {
@@ -416,4 +506,8 @@ def displayFooter(){
 		paragraph getFormat("line")
 		paragraph "<div style='color:#1A77C9;text-align:center'>Myenergi Integration<br><a href='https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7LBRPJRLJSDDN&source=url' target='_blank'><img src='https://www.paypalobjects.com/webstatic/mktg/logo/pp_cc_mark_37x23.jpg' border='0' alt='PayPal Logo'></a><br><br>Please consider donating. This app took a lot of work to make.<br>If you find it valuable, I'd certainly appreciate it!</div>"
 	}
+}
+
+def pollAllDevices () {
+
 }
