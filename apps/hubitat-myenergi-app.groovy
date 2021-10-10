@@ -67,7 +67,6 @@ def mainPage() {
         
         //def devices = getDeviceList()
         //trace("End of code")
-        //log.info(devices)
     }
 }
 
@@ -114,11 +113,11 @@ def devicePage() {
 def getDeviceList() {
     trace("Running getDeviceList")
 
-    def currentURI = ""
+/*    def currentURI = ""
 
-    currentURI = getCurrentURI()
+    currentURI = getCurrentURI()*/
 
-    pollASNServer(currentURI,"/cgi-jstatus-*")
+    pollASNServer("/cgi-jstatus-*")
         
     //def devicesList = []
     def devicesList = []
@@ -254,9 +253,14 @@ def getAuthMap(cmdParams) {
     }
 }
 
-def pollASNServer(asnServer,asnPath = "/cgi-jstatus-*") {
+// def pollASNServer(asnServer,asnPath = "/cgi-jstatus-*") {
+def pollASNServer(asnPath = "/cgi-jstatus-*") {
     // TODO should get a 200 (success) but if a 401 is received then check to see if stale record (exists and) is true
     // TODO might get a 401 (in which case check header record and run authmap and poll against new server) 
+
+    def asnServer = ""
+
+    asnServer = getCurrentURI()
 
     def cmdParams = [
         uri: "https://" + asnServer,
@@ -459,15 +463,21 @@ def installed() {
     // TODO subscribe to schedule for refreshing all devices
 
     createDevices()
+    setScheduler()
 }
 
 def updated() {
     trace("Update started")
     
     createDevices()
+    pollAllDevices()
+    setScheduler()
 }
 
 def uninstalled() {
+
+    unschedule()
+    removeAllDevices()
 }
 
 def createDevices() {
@@ -493,6 +503,8 @@ def createDevices() {
             log.warn "device with id ${devID} already exists - device has not been (re)created"
         }
     }
+
+    //TODO remove unselected devices that have been created previously (when this is run from updated)
 }
 
 def displayHeader() {
@@ -509,5 +521,69 @@ def displayFooter(){
 }
 
 def pollAllDevices () {
+    trace("Running pollAllDevices")
 
+    // request updated data from the server
+    updateMap = pollASNServer("/cgi-jstatus-*")
+
+    logDebug("updateMap=${updateMap}")
+
+    def allDevices = getChildDevices()
+    
+    pauseExecution(2000)
+    logDebug("Devices returned= ${allDevices}")
+    allDevices.each {
+        // tell the child device to update from the stored state values
+        it.poll(false,updateMap[0].eddi,updateMap[1].zappi,updateMap[2].harvi)
+    }
+
+}
+
+def setScheduler () {
+    trace("Running setScheduler")
+    // uses the refreshRate nominated by the user to set up a regular refresh of devices
+    
+    //cancel schedules first
+    unschedule()
+    
+    // set up new schedule to poll all devices
+    switch (refreshRate) {
+        case "1":
+            runEvery1Minute("pollAllDevices")
+            break
+        case "5":
+            runEvery5Minutes("pollAllDevices")
+            break
+        case "10":
+            runEvery10Minutes("pollAllDevices")
+            break
+        case "15":
+            runEvery15Minutes("pollAllDevices")
+            break
+        case "30":
+            runEvery30Minutes("pollAllDevices")
+            break
+        case "60":
+            runEvery1Hour("pollAllDevices")
+            break
+        case "180":
+            runEvery3Hours("pollAllDevices")
+            break
+        default:
+            runEvery15Minutes("pollAllDevices")
+            break
+    }
+}
+
+def removeAllDevices () {
+    trace("Running removeAllDevices")
+    getAllChildDevices().each {
+        log.info "Deleting myenergi device: ${it.displayName}"
+        try {
+            deleteChildDevice(it.deviceNetworkId)
+        }
+        catch (e) {
+            logDebug "${e} deleting the myenergi device: ${it.deviceNetworkId}"
+        }
+    }
 }

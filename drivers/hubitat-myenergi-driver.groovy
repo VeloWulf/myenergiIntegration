@@ -53,18 +53,18 @@
             command "manualBoost", [
                 [name:"heater", 
                     description:"Select the heater to boost",
-                    type:"ENUM", constraints:[1,2]],
+                    type:"ENUM", constraints:["1","2"]],
                 [name:"duration", 
                     description:"Determines the boost duration (0 cancels the boost)",
-                    type:"ENUM", constraints:[0,20,40,60,90,120,240]]
+                    type:"ENUM", constraints:["0","20","40","60","90","120","240"]]
             ]
             command "scheduledBoost", [
                 [name:"heater", description:"Select the heater to schedule",
                     type:"ENUM", constraints:["Heater 1","Heater 2","Relay 1","Relay 2"]],
                 [name:"slot", description:"Select the schedule slot",
                     type:"ENUM", constraints:[1,2,3,4]],
-                [name:"startTime", description:"Start time (hh:mm)", type:"STRING"],
-                [name:"duration", description:"Duration (hh:mm)", type:"STRING"],
+                [name:"startTime", description:"Start time (hhmm in multiples of 15 mins), example: 11:15pm = 2315", type:"STRING"],
+                [name:"duration", description:"Duration (hmm in multiples of 15 mins) - max boost is 8 hours", type:"STRING"],
                 [name:"monday", type:"ENUM", constraints:["Off","On"]],
                 [name:"tuesday", type:"ENUM", constraints:["Off","On"]],
                 [name:"wednesday", type:"ENUM", constraints:["Off","On"]],
@@ -74,10 +74,16 @@
                 [name:"sunday", type:"ENUM", constraints:["Off","On"]],
                 //[name:"days", description:"Enter days to run (example MTWTFSS = 1111111)",type:"STRING"]
             ]
+            command "removeScheduledBoost", [
+                [name:"heater", description:"Select the heater to cancel",
+                    type:"ENUM", constraints:["Heater 1","Heater 2","Relay 1","Relay 2"]],
+                [name:"slot", description:"Select the schedule slot to cancel",
+                    type:"ENUM", constraints:[1,2,3,4]]
+            ]
         }
  
     preferences {
-        input (
+        /*input (
                 type: "enum",
                 name: "defaultBoost",
                 title: "Default Boost",
@@ -85,7 +91,7 @@
                 options: [ "20","40","60","90","120","240" ],
                 required: false,
                 defaultValue: "60"
-            )
+            )*/
         input (name: "infoLogging", type: "bool", title: "Enable info message logging", defaultValue: true)
         input (name: "debugLogging", type: "bool", title: "Enable debug message logging", defaultValue: false)
         input (name: "traceLogging", type: "bool", title: "Enable trace message logging", defaultValue: false)
@@ -118,6 +124,7 @@ private def error (msg) {
 
  def installed() {
      poll()
+     state.boost = parent.pollASNServer("/cgi-boost-time-E${device.deviceNetworkId}")
  }
 
 def uninstalled() {
@@ -126,36 +133,72 @@ def uninstalled() {
 
 def updated() {
     poll(true)
+    state.boost = parent.pollASNServer("/cgi-boost-time-E${device.deviceNetworkId}")
 }
 
-def poll(updateData = false) {
+def poll(updateData = false, eddiMap = null, zappiMap = null, harviMap = null) {
     trace("Polling device data")
-    //TODO this will call the parent pollASNServer method that will get the data for parsing 
-
+    
     debug("updateData=${updateData}")    
     // as an exception this method may need to update the data stored in the parent app
     if (updateData) {
-        currentURI = parent.getCurrentURI()
-        parent.pollASNServer(currentURI,"/cgi-jstatus-*")
+        //currentURI = parent.getCurrentURI()
+        trace("Updating device data")
+        parent.pollASNServer("/cgi-jstatus-*")
     }
     
     // get the latest eddi data from the parent app
-    eddiMap = parent.state.eddi
+    if (!eddiMap) { eddiMap = parent.state.eddi }
     debug("eddiMap = ${eddiMap}")
     parseEddiData(eddiMap)
+
+    // update the state boost variable with the current boost settings
+    state.boost = parent.pollASNServer("/cgi-boost-time-E${device.deviceNetworkId}")
 
 }
 
 def manualBoost(heater,duration) {
-
+    trace("Running manualBoost")
+    def serial = device.deviceNetworkId
+    // use the supplied parameters to set a manual boost on the device (a duration of 0 will cancel the boost)
+    if (duration != "0") {
+        info("Boosting  ${device.displayName} for ${duration} minutes")
+        response = parent.pollASNServer("/cgi-eddi-boost-E${serial}-10-${heater}-${duration}")
+    } else {
+        if (device.currentValue("remainingBoost") > 0)
+        info("Cancelling active boost on ${device.displayName}")
+        response = parent.pollASNServer("/cgi-eddi-boost-E${serial}-1-${heater}-0")
+    }
 }
 
 def on() {
+    trace("On is running")
+    // check the status of device and if it is off then switch it on
+    def currentStatus = device.currentValue("switch")
+    def serial = device.deviceNetworkId
+    if (currentStatus == 'off') {
+        info("Switching ${device.displayName} ON")
+        response = parent.pollASNServer("/cgi-eddi-mode-E${serial}-1")
+    }
 
+    // switching on takes a few moments so wait for 5 seconds before re-polling the device
+    pauseExecution(5000)
+    poll(true) // update the values to reflect the device is now on
 }
 
 def off() {
-
+    trace("Off is running")
+    // check the status of device and if it is on then switch it off
+    def currentStatus = device.currentValue("switch")
+    def serial = device.deviceNetworkId
+    if (currentStatus == 'on') {
+        info("Switching ${device.displayName} OFF")
+        response = parent.pollASNServer("/cgi-eddi-mode-E${serial}-0")
+    }
+    
+    // switching off takes a few moments so wait for 5 seconds before re-polling the device
+    pauseExecution(5000)
+    poll(true) // update the values to reflect the device is now off
 }
 
 def parseEddiData(eddiMap) {
@@ -272,26 +315,92 @@ def parseEddiData(eddiMap) {
                     unit:"C")
         }
     }
-    
-    /*eddiMap.each {valuesMap ->
-        debug("valuesMap=${valuesMap}")
-        debug("dni=${dni}")
-                
-        int eddiSNO = valuesMap.sno as Integer
-
-        if (eddiSNO == dni) {
-            //TODO map results to attributes and send Events
-            
-
-            }
-
-        
-
-        
-    }*/
 }
 
 def refresh() {
     trace("Refreshing (gets new data from parent)")
     poll(true)
+}
+
+def scheduledBoost(heater,slot,startTime,duration,monday,tuesday,wednesday,thursday,friday,saturday,sunday) {
+    trace("Running scheduledBoost")
+    // setting a scheduled boost takes the paramters, checks the format of the time strings and combines
+    // day flags into a string for submission to the eddi
+    // NOTE: this command does not change the e sense or temperature flags - these must still be set manually in the required slot
+
+    int startTimeInt = startTime as Integer
+    int startTimeMins = startTime.substring(3) as Integer
+    int durationInt = duration as Integer
+    int durationMins = duration.substring(2) as Integer
+
+    debug("${startTimeMins} ---- divided by 15 = ${startTimeMins / 15} ---- modulus = ${startTimeMins % 15}")
+
+    assert startTime ==~ /[0-9]{4}/ : "scheduledBoost: Start time entered in the incorrect format"
+    assert startTimeInt <= 2345 : "scheduledBoost: Duration must be less than 2345"
+    assert startTimeMins % 15 == 0 : "scheduledBoost: Start time must end in 15 minute intervals"
+    assert duration ==~ /[0-9]{3}/ : "scheduledBoost: Duration entered in the incorrect format"
+    assert durationInt <= 800 : "scheduledBoost: Duration must be 8 hours or less"
+    assert durationMins % 15 == 0 : "scheduledBoost: Duration must end in 15 minute intervals"
+
+    // change state words to flags and create string
+    dayString = convertWordToFlag(monday)+convertWordToFlag(tuesday)+convertWordToFlag(wednesday)+
+        convertWordToFlag(thursday)+convertWordToFlag(friday)+convertWordToFlag(saturday)+convertWordToFlag(sunday)
+    debug("dayString=${dayString}")
+
+    // create the heater code (heater 1 / 2 = 1 / 2 or relay 1 / 2 = 5 /6)
+    debug("heater=${heater}")
+    def heaterchar = ""
+    
+    switch (heater) {
+        case "Heater 1": heaterchar = 1
+            break
+        case "Heater 2": heaterchar = 2
+            break
+        case "Relay 1": heaterchar = 5
+            break
+        case "Relay 2": heaterchar = 6
+            break
+    }
+
+    def slotcode = "${heaterchar}${slot}"
+
+    // combine the parameters into the asnPath string
+    def asnPath = "/cgi-boost-time-E${device.deviceNetworkId}-${slotcode}-${startTime}-${duration}-0${dayString}"
+    debug("asnPath=${asnPath}")
+    // and run the command to update the boost slot
+    boostTimes = parent.pollASNServer(asnPath)
+}
+
+private String convertWordToFlag(word) {
+    switch (word) {
+        case "On": return 1
+            break
+        case "Off": return 0
+            break
+    }
+}
+
+def removeScheduledBoost(heater,slot) {
+    trace("Running removeScheduledBoost")
+    // create the heater code (heater 1 / 2 = 1 / 2 or relay 1 / 2 = 5 /6)
+    debug("heater=${heater}")
+    def heaterchar = ""
+    
+    switch (heater) {
+        case "Heater 1": heaterchar = 1
+            break
+        case "Heater 2": heaterchar = 2
+            break
+        case "Relay 1": heaterchar = 5
+            break
+        case "Relay 2": heaterchar = 6
+            break
+    }
+
+    def slotcode = "${heaterchar}${slot}"
+
+    // combine the parameters into the asnPath string
+    def asnPath = "/cgi-boost-time-E${device.deviceNetworkId}-${slotcode}-0000-000-00000000"
+    debug("asnPath=${asnPath}")
+    boostTimes = parent.pollASNServer(asnPath)
 }
