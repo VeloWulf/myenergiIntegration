@@ -50,6 +50,7 @@
             attribute "remainingBoost", "number"
             attribute "status", "number"
     
+            command "getLatestData"
             command "manualBoost", [
                 [name:"heater", 
                     description:"Select the heater to boost",
@@ -318,8 +319,8 @@ def parseEddiData(eddiMap) {
 }
 
 def refresh() {
-    trace("Refreshing (gets new data from parent)")
-    poll(true)
+    trace("Refresh is running")
+    // poll(true)
 }
 
 def scheduledBoost(heater,slot,startTime,duration,monday,tuesday,wednesday,thursday,friday,saturday,sunday) {
@@ -403,4 +404,9 @@ def removeScheduledBoost(heater,slot) {
     def asnPath = "/cgi-boost-time-E${device.deviceNetworkId}-${slotcode}-0000-000-00000000"
     debug("asnPath=${asnPath}")
     boostTimes = parent.pollASNServer(asnPath)
+}
+
+def getLatestData() {
+    trace("Running getNewData")
+    poll(true)
 }

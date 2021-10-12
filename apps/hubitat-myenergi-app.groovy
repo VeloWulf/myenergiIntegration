@@ -543,7 +543,7 @@ def setScheduler () {
     trace("Running setScheduler")
     // uses the refreshRate nominated by the user to set up a regular refresh of devices
     
-    //cancel schedules first
+    // cancel schedules first
     unschedule()
     
     // set up new schedule to poll all devices
