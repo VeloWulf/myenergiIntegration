@@ -68,6 +68,8 @@ def mainPage() {
         //def devices = getDeviceList()
         //trace("End of code")
     }
+
+    //TODO improve the pages and add header footer with paypal links
 }
 
 def devicePage() {
@@ -255,9 +257,6 @@ def getAuthMap(cmdParams) {
 
 // def pollASNServer(asnServer,asnPath = "/cgi-jstatus-*") {
 def pollASNServer(asnPath = "/cgi-jstatus-*") {
-    // TODO should get a 200 (success) but if a 401 is received then check to see if stale record (exists and) is true
-    // TODO might get a 401 (in which case check header record and run authmap and poll against new server) 
-
     def asnServer = ""
 
     asnServer = getCurrentURI()
@@ -460,8 +459,7 @@ private logDebug(msg, trace = false) {
 def installed() {
     trace("Installation started")
     logDebug("Settings = ${settings}")
-    // TODO subscribe to schedule for refreshing all devices
-
+    
     createDevices()
     setScheduler()
 }

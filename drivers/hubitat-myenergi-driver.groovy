@@ -99,8 +99,6 @@
     }
  }
 
-//TODO Add functions for trace and debug
-
 private def info (msg) {
     if (infoLogging) {
         log.info "${device.displayName}: ${msg}"\
@@ -325,7 +323,7 @@ def refresh() {
 
 def scheduledBoost(heater,slot,startTime,duration,monday,tuesday,wednesday,thursday,friday,saturday,sunday) {
     trace("Running scheduledBoost")
-    // setting a scheduled boost takes the paramters, checks the format of the time strings and combines
+    // setting a scheduled boost takes the parameters, checks the format of the time strings and combines
     // day flags into a string for submission to the eddi
     // NOTE: this command does not change the e sense or temperature flags - these must still be set manually in the required slot
 
