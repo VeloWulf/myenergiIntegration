@@ -178,11 +178,12 @@ def on() {
     if (currentStatus == 'off') {
         info("Switching ${device.displayName} ON")
         response = parent.pollASNServer("/cgi-eddi-mode-E${serial}-1")
+            
+        // switching on takes a few moments so wait for 5 seconds before re-polling the device
+        pauseExecution(5000)
+        poll(true) // update the values to reflect the device is now on
     }
 
-    // switching on takes a few moments so wait for 5 seconds before re-polling the device
-    pauseExecution(5000)
-    poll(true) // update the values to reflect the device is now on
 }
 
 def off() {
@@ -193,11 +194,13 @@ def off() {
     if (currentStatus == 'on') {
         info("Switching ${device.displayName} OFF")
         response = parent.pollASNServer("/cgi-eddi-mode-E${serial}-0")
+        
+        // switching off takes a few moments so wait for 5 seconds before re-polling the device
+        pauseExecution(5000)
+        poll(true) // update the values to reflect the device is now off
     }
     
-    // switching off takes a few moments so wait for 5 seconds before re-polling the device
-    pauseExecution(5000)
-    poll(true) // update the values to reflect the device is now off
+
 }
 
 def parseEddiData(eddiMap) {
