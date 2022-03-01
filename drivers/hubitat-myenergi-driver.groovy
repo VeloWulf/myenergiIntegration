@@ -161,7 +161,8 @@ def manualBoost(heater,duration) {
     def serial = device.deviceNetworkId
     // use the supplied parameters to set a manual boost on the device (a duration of 0 will cancel the boost)
     if (duration != "0") {
-        info("Boosting  ${device.displayName} for ${duration} minutes")
+        info("Boosting ${device.displayName} for ${duration} minutes")
+        debug("Command being issued = /cgi-eddi-boost-E${serial}-10-${heater}-${duration}")
         response = parent.pollASNServer("/cgi-eddi-boost-E${serial}-10-${heater}-${duration}")
     } else {
         if (device.currentValue("remainingBoost") > 0)
@@ -183,7 +184,6 @@ def on() {
         pauseExecution(5000)
         poll(true) // update the values to reflect the device is now on
     }
-
 }
 
 def off() {
@@ -194,13 +194,11 @@ def off() {
     if (currentStatus == 'on') {
         info("Switching ${device.displayName} OFF")
         response = parent.pollASNServer("/cgi-eddi-mode-E${serial}-0")
-        
+
         // switching off takes a few moments so wait for 5 seconds before re-polling the device
         pauseExecution(5000)
         poll(true) // update the values to reflect the device is now off
     }
-    
-
 }
 
 def parseEddiData(eddiMap) {
