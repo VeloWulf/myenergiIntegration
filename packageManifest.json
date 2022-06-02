@@ -1,0 +1,27 @@
+{
+  "packageName": "myenergi Integration",
+  "author": "Paul Hutton",
+  "version": "0.1.0",
+  "minimumHEVersion": "2.2.5",
+  "dateReleased": "2021-10-10",
+  "apps": [
+    {
+      "id": "4ec73e08-dbda-46fe-bfbb-f3c0a0637352",
+      "name": "myenergi Device Integration",
+      "namespace": "velowulf",
+      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.1.0/apps/hubitat-myenergi-app.groovy",
+      "required": true,
+      "oauth": false,
+      "primary": false
+    }
+  ],
+  "drivers": [
+    {
+      "id": "34ddfeab-44af-4b38-8a0d-db1c692c926f",
+      "name": "myenergi eddi device",
+      "namespace": "velowulf",
+      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.1.0/drivers/hubitat-myenergi-driver.groovy",
+      "required": true
+    }
+  ]
+}
