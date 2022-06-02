@@ -14,6 +14,7 @@
  *
  *  Date          Comments
  *  2021-10-06	  Initial version
+ *  2022-06-22    Update to manual boost to reflect that API is currently restricted to a 60 minute boost only
  *
  */
 
@@ -57,7 +58,7 @@
                     type:"ENUM", constraints:["1","2"]],
                 [name:"duration", 
                     description:"Determines the boost duration (0 cancels the boost)",
-                    type:"ENUM", constraints:["0","20","40","60","90","120","240"]]
+                    type:"ENUM", constraints:["0","20","40","60"]]
             ]
             command "scheduledBoost", [
                 [name:"heater", description:"Select the heater to schedule",
