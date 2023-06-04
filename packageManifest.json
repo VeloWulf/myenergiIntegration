@@ -1,15 +1,15 @@
 {
   "packageName": "myenergi Integration",
   "author": "Paul Hutton",
-  "version": "1.0.0",
+  "version": "0.2.0",
   "minimumHEVersion": "2.2.5",
   "dateReleased": "2023-06-04",
   "apps": [
     {
-      "id": "07e621db-ae39-491a-b432-e43a7a22b2ef",
+      "id": "748c622e-92cf-4851-88af-74caac498bb6",
       "name": "myenergi Device Integration",
       "namespace": "velowulf",
-      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/1.0.0/apps/hubitat-myenergi-app.groovy",
+      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.2.0/apps/hubitat-myenergi-app.groovy",
       "required": true,
       "oauth": false,
       "primary": false
@@ -17,17 +17,17 @@
   ],
   "drivers": [
     {
-      "id": "e13daef3-5b6b-4a86-b33d-41c96b816a05",
+      "id": "f8a6c4c9-2633-4145-98f1-9e64e59adca8",
       "name": "myenergi eddi device",
       "namespace": "velowulf",
-      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/1.0.0/drivers/hubitat-myenergi-eddi-driver.groovy",
+      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.2.0/drivers/hubitat-myenergi-eddi-driver.groovy",
       "required": true
     },
     {
-      "id": "1c5b4d61-6a12-462b-9abb-173fc49a2bb0",
+      "id": "84ca7b28-e9f8-43f7-a332-87b43e6c5ea9",
       "name": "myenergi zappi device",
       "namespace": "velowulf",
-      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/1.0.0/drivers/hubitat-myenergi-zappi-driver.groovy",
+      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.2.0/drivers/hubitat-myenergi-zappi-driver.groovy",
       "required": true
     }
   ]
