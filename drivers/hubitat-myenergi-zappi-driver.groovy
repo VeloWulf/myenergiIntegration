@@ -65,7 +65,7 @@
                     description:"The time the boost should be complete (hhmm)",
                     type:"STRING"]
             ]
-            command "scheduledBoost", [
+/*            command "scheduledBoost", [
                 [name:"slot", description:"Select the schedule slot",
                     type:"ENUM", constraints:[1,2,3,4]],
                 [name:"startTime", description:"Start time (hhmm in multiples of 15 mins), example: 11:15pm = 2315", type:"STRING"],
@@ -82,10 +82,10 @@
             command "removeScheduledBoost", [
                 [name:"slot", description:"Select the schedule slot to cancel",
                     type:"ENUM", constraints:[1,2,3,4]]
-            ]
+            ]*/
             command "chargeMode", [
                 [name:"mode", description:"Choose the charging mode",
-                    type:"STRING",constraints:["FAST","ECO","ECO+","STOP"]]
+                    type:"ENUM", constraints:["FAST","ECO","ECO+","STOP"]]
             ]
         }
  
@@ -181,8 +181,8 @@ def smartBoost(additionalCharge, timeComplete) {
     trace("Running smartBoost")
     def serial = device.deviceNetworkId
 
-    int timeCompleteInt = startTime as Integer
-    int timeCompleteMins = startTime.substring(3) as Integer
+    int timeCompleteInt = timeComplete as Integer
+    int timeCompleteMins = timeComplete.substring(3) as Integer
 
     debug("${timeCompleteMins} ---- divided by 15 = ${timeCompleteMins / 15} ---- modulus = ${timeCompleteMins % 15}")
 
@@ -215,6 +215,7 @@ def off() {
 
 def chargeMode (mode) {
     trace("chargeMode is running")
+    def serial = device.deviceNetworkId
     // convert string mode into integer
     def modeInt = 0
     switch (mode) {
