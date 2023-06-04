@@ -65,7 +65,7 @@
                     description:"The time the boost should be complete (hhmm)",
                     type:"STRING"]
             ]
-/*            command "scheduledBoost", [
+            command "scheduledBoost", [
                 [name:"slot", description:"Select the schedule slot",
                     type:"ENUM", constraints:[1,2,3,4]],
                 [name:"startTime", description:"Start time (hhmm in multiples of 15 mins), example: 11:15pm = 2315", type:"STRING"],
@@ -82,7 +82,7 @@
             command "removeScheduledBoost", [
                 [name:"slot", description:"Select the schedule slot to cancel",
                     type:"ENUM", constraints:[1,2,3,4]]
-            ]*/
+            ]
             command "chargeMode", [
                 [name:"mode", description:"Choose the charging mode",
                     type:"ENUM", constraints:["FAST","ECO","ECO+","STOP"]]
@@ -462,7 +462,7 @@ def removeScheduledBoost(slot) {
     def slotcode = "1${slot}"
 
     // combine the parameters into the asnPath string
-    def asnPath = "/cgi-boost-time-E${device.deviceNetworkId}-${slotcode}-0000-000-00000000"
+    def asnPath = "/cgi-boost-time-Z${device.deviceNetworkId}-${slotcode}-0000-000-00000000"
     debug("asnPath=${asnPath}")
     boostTimes = parent.pollASNServer(asnPath)
 }
