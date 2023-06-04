@@ -1,7 +1,7 @@
 /**
- *  myenergi eddi Device Handler
+ *  myenergi zappi Device Handler
  *
- *  Copyright 2021 Paul Hutton
+ *  Copyright 2023 Paul Hutton
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -13,16 +13,13 @@
  *  for the specific language governing permissions and limitations under the License.
  *
  *  Date          Comments
- *  2021-10-06	  Initial version
- *  2022-06-22    Update to manual boost to reflect that API is currently restricted to a 60 minute boost only
- *  2023-06-04    Left in place for backwards compatibility - no further development will take place on this driver
- *                DRIVER function moved to hubitat-myenergi-zappi-driver.groovy
+ *  2023-06-04	  Initial version
  *
  */
 
  metadata {
-     definition(name:"myenergi eddi device", namespace:"velowulf", 
-        description:"Driver for Hubitat Elevation to control the Hubitat eddi solar diverter",
+     definition(name:"myenergi zappi device", namespace:"velowulf", 
+        description:"Driver for Hubitat Elevation to control the Hubitat zappi EV charger",
         author:"Paul Hutton",
         importUrl:"") {
             capability "EnergyMeter"
@@ -31,10 +28,8 @@
             capability "PowerMeter"
             capability "Polling" //poll() 
             capability "Refresh" //refresh()
-            capability "RelaySwitch" //on(), off()
             capability "Sensor"
-            capability "Switch"
-            capability "TemperatureMeasurement"
+            capability "Switch" //on(), off()
             capability "VoltageMeasurement"
 
             /* standard attributes included with capabilities
@@ -46,25 +41,31 @@
             attribute "frequency", "number"*/
             
             attribute "boostMode", "number"
-            // attribute "sessionTotal", "number"
+            attribute "sessionTotal", "number"
             attribute "diversionAmount", "number"
             attribute "generatedWatts", "number"
             // attribute "gridWatts", "number"
-            attribute "remainingBoost", "number"
+            attribute "remainingBoostCharge", "number"
             attribute "status", "number"
+            attribute "minimiumGreenLevel", "number"
+            attribute "priority", "number"
+            attribute "chargeStatus", "string"
+            attribute "zappiMode", "number"
     
-            // command "getLatestData"
             command "manualBoost", [
-                [name:"heater", 
-                    description:"Select the heater to boost",
-                    type:"ENUM", constraints:["1","2"]],
-                [name:"duration", 
-                    description:"Determines the boost duration (0 cancels the boost)",
-                    type:"ENUM", constraints:["0","20","40","60"]]
+                [name:"additionalCharge", 
+                    description:"Determines the additional charge that will be added to the EV (0 cancels the boost)",
+                    type:"ENUM", constraints:["0","5","10","20","30","40"]]
+            ]
+            command "smartBoost", [
+                [name:"additionalCharge", 
+                    description:"Determines the additional charge that will be added to the EV (0 cancels the boost)",
+                    type:"ENUM", constraints:["0","5","10","20","30","40"]],
+                [name:"timeComplete", 
+                    description:"The time the boost should be complete (hhmm)",
+                    type:"STRING"]
             ]
             command "scheduledBoost", [
-                [name:"heater", description:"Select the heater to schedule",
-                    type:"ENUM", constraints:["Heater 1","Heater 2","Relay 1","Relay 2"]],
                 [name:"slot", description:"Select the schedule slot",
                     type:"ENUM", constraints:[1,2,3,4]],
                 [name:"startTime", description:"Start time (hhmm in multiples of 15 mins), example: 11:15pm = 2315", type:"STRING"],
@@ -79,10 +80,12 @@
                 //[name:"days", description:"Enter days to run (example MTWTFSS = 1111111)",type:"STRING"]
             ]
             command "removeScheduledBoost", [
-                [name:"heater", description:"Select the heater to cancel",
-                    type:"ENUM", constraints:["Heater 1","Heater 2","Relay 1","Relay 2"]],
                 [name:"slot", description:"Select the schedule slot to cancel",
                     type:"ENUM", constraints:[1,2,3,4]]
+            ]
+            command "chargeMode", [
+                [name:"mode", description:"Choose the charging mode",
+                    type:"STRING",constraints:["FAST","ECO","ECO+","STOP"]]
             ]
         }
  
@@ -126,7 +129,7 @@ private def error (msg) {
 
  def installed() {
      poll()
-     state.boost = parent.pollASNServer("/cgi-boost-time-E${device.deviceNetworkId}")
+     state.boost = parent.pollASNServer("/cgi-boost-time-Z${device.deviceNetworkId}")
  }
 
 def uninstalled() {
@@ -135,10 +138,10 @@ def uninstalled() {
 
 def updated() {
     poll(true)
-    state.boost = parent.pollASNServer("/cgi-boost-time-E${device.deviceNetworkId}")
+    state.boost = parent.pollASNServer("/cgi-boost-time-Z${device.deviceNetworkId}")
 }
 
-def poll(updateData = false, eddiMap = null, zappiMap = null, harviMap = null) {
+def poll(updateData = false, eddiMap = null, zappiMap = null, harviMap = null, libbiMap = null) {
     trace("Polling device data")
     
     debug("updateData=${updateData}")    
@@ -149,66 +152,101 @@ def poll(updateData = false, eddiMap = null, zappiMap = null, harviMap = null) {
         parent.pollASNServer("/cgi-jstatus-*")
     }
     
-    // get the latest eddi data from the parent app
-    if (!eddiMap) { eddiMap = parent.state.eddi }
-    debug("eddiMap = ${eddiMap}")
-    parseEddiData(eddiMap)
+    // get the latest zappi data from the parent app
+    if (!zappiMap) { zappiMap = parent.state.zappi }
+    debug("zappiMap = ${zappiMap}")
+    parseZappiData(zappiMap)
 
     // update the state boost variable with the current boost settings
-    state.boost = parent.pollASNServer("/cgi-boost-time-E${device.deviceNetworkId}")
+    state.boost = parent.pollASNServer("/cgi-boost-time-Z${device.deviceNetworkId}")
 
 }
 
-def manualBoost(heater,duration) {
+def manualBoost(additionalCharge) {
     trace("Running manualBoost")
     def serial = device.deviceNetworkId
     // use the supplied parameters to set a manual boost on the device (a duration of 0 will cancel the boost)
-    if (duration != "0") {
-        info("Boosting ${device.displayName} for ${duration} minutes")
-        debug("Command being issued = /cgi-eddi-boost-E${serial}-10-${heater}-${duration}")
-        response = parent.pollASNServer("/cgi-eddi-boost-E${serial}-10-${heater}-${duration}")
+    if (additionalCharge != "0") {
+        info("Boosting ${device.displayName} to ${additionalCharge} kWh")
+        debug("Command being issued = /cgi-zappi-mode-Z${serial}-0-10-${additionalCharge}-0000")
+        response = parent.pollASNServer("/cgi-zappi-mode-Z${serial}-0-10-${additionalCharge}-0000")
     } else {
         if (device.currentValue("remainingBoost") > 0)
         info("Cancelling active boost on ${device.displayName}")
-        response = parent.pollASNServer("/cgi-eddi-boost-E${serial}-1-${heater}-0")
+        response = parent.pollASNServer("/cgi-zappi-mode-Z${serial}-0-2-0-0000")
+    }
+}
+
+def smartBoost(additionalCharge, timeComplete) {
+    trace("Running smartBoost")
+    def serial = device.deviceNetworkId
+
+    int timeCompleteInt = startTime as Integer
+    int timeCompleteMins = startTime.substring(3) as Integer
+
+    debug("${timeCompleteMins} ---- divided by 15 = ${timeCompleteMins / 15} ---- modulus = ${timeCompleteMins % 15}")
+
+    assert timeComplete ==~ /[0-9]{4}/ : "smartBoost: Start time entered in the incorrect format"
+    assert timeCompleteInt <= 2345 : "smartBoost: Duration must be less than 2345"
+    assert timeCompleteMins % 15 == 0 : "smartBoost: Start time must end in 15 minute intervals"
+
+
+    // use the supplied parameters to set a manual boost on the device (a duration of 0 will cancel the boost)
+    if (additionalCharge != "0") {
+        info("Boosting ${device.displayName} to ${additionalCharge} kWh")
+        debug("Command being issued = /cgi-zappi-mode-Z${serial}-0-11-${additionalCharge}-${timeComplete}")
+        response = parent.pollASNServer("/cgi-zappi-mode-Z${serial}-0-11-${additionalCharge}-${timeComplete}")
+    } else {
+        if (device.currentValue("remainingBoost") > 0)
+        info("Cancelling active boost on ${device.displayName}")
+        response = parent.pollASNServer("/cgi-zappi-mode-Z${serial}-0-2-0-0000")
     }
 }
 
 def on() {
     trace("On is running")
-    // check the status of device and if it is off then switch it on
-    def currentStatus = device.currentValue("switch")
-    def serial = device.deviceNetworkId
-    if (currentStatus == 'off') {
-        info("Switching ${device.displayName} ON")
-        response = parent.pollASNServer("/cgi-eddi-mode-E${serial}-1")
-            
-        // switching on takes a few moments so wait for 5 seconds before re-polling the device
-        pauseExecution(5000)
-        poll(true) // update the values to reflect the device is now on
-    }
+    chargeMode("ECO")
 }
 
 def off() {
     trace("Off is running")
-    // check the status of device and if it is on then switch it off
-    def currentStatus = device.currentValue("switch")
-    def serial = device.deviceNetworkId
-    if (currentStatus == 'on') {
-        info("Switching ${device.displayName} OFF")
-        response = parent.pollASNServer("/cgi-eddi-mode-E${serial}-0")
-
-        // switching off takes a few moments so wait for 5 seconds before re-polling the device
-        pauseExecution(5000)
-        poll(true) // update the values to reflect the device is now off
-    }
+    chargeMode("STOP")
 }
 
-def parseEddiData(eddiMap) {
-    trace("Parsing eddi data")
+def chargeMode (mode) {
+    trace("chargeMode is running")
+    // convert string mode into integer
+    def modeInt = 0
+    switch (mode) {
+        case ("FAST"):
+            info("Switching ${device.displayName} to FAST mode")
+            response = parent.pollASNServer("/cgi-zappi-mode-Z${serial}-1-0-0-0000")
+            break
+        case ("ECO"):
+            info("Switching ${device.displayName} to ECO mode")
+            response = parent.pollASNServer("/cgi-zappi-mode-Z${serial}-2-0-0-0000")
+            break
+        case ("ECO+"):
+            info("Switching ${device.displayName} to ECO+ mode")
+            response = parent.pollASNServer("/cgi-zappi-mode-Z${serial}-3-0-0-0000")
+            break
+        case ("STOP"):
+            info("Switching ${device.displayName} to STOP mode")
+            response = parent.pollASNServer("/cgi-zappi-mode-Z${serial}-4-0-0-0000")
+            break
+    }    
+    
+    // changing mode takes a few moments so wait for 5 seconds before re-polling the device
+    pauseExecution(5000)
+    poll(true) // update the values to reflect the device operating a different mode
+
+}
+
+def parseZappiData(zappiMap) {
+    trace("Parsing zappi data")
     int dni = device.deviceNetworkId as Integer
     
-    def data = eddiMap.find {it.sno == dni}
+    def data = zappiMap.find {it.sno == dni}
     debug("data=${data}")
     debug("data size: ${data.size()}")
     assert data.size() > 0 : "Not able to find data for device ${device.displayName}"
@@ -250,13 +288,18 @@ def parseEddiData(eddiMap) {
                     value:datavalue,
                     unit:"W")
                 break
-            case ("rbt"):
+            case ("mgl"):
+                sendEvent(name:"minimumGreenLevel",
+                    value:datavalue,
+                    unit:"%")
+                break
+            case ("tbk"):
                 if (datavalue) {
-                    sendEvent(name:"remainingBoost",
+                    sendEvent(name:"remainingBoostCharge",
                         value:datavalue,
                         unit:"seconds")
                 } else {
-                    sendEvent(name:"remainingBoost",
+                    sendEvent(name:"remainingBoostCharge",
                         value:"0",
                         unit:"seconds")
                 }
@@ -268,15 +311,72 @@ def parseEddiData(eddiMap) {
                         desc = "${device.displayName} is PAUSED"
                         break
                     case 3:
-                        desc = "${device.displayName} is diverting energy"
-                        break
-                    case 4:
-                        desc = "${device.displayName} is BOOSTING"
+                        desc = "${device.displayName} is charging"
                         break
                     case 5:
-                        desc = "${device.displayName} has reached MAX temperature"
+                        desc = "${device.displayName} is COMPLETE"
                         break
-                    case 6:
+                }
+
+                sendEvent(name:"status",
+                    value:datavalue,
+                    descriptionText:desc)
+                break
+            case ("vol"):
+                sendEvent(name:"voltage",
+                    value:datavalue / 10,
+                    unit:"V")
+                break
+            case ("che"):
+                sendEvent(name:"energy",
+                    value:datavalue,
+                    unit:"kWh")
+                break
+            case ("pri"):
+                sendEvent(name:"priority",
+                    value:datavalue,
+                    descriptionText:"${device.displayName} has a priority of ${datavalue}")
+                break
+            case ("pst"):
+                def desc=""
+                switch (datavalue) {
+                    case "A":
+                        desc = "EV Disconnected"
+                        break
+                    case "B1":
+                        desc = "EV Connected"
+                        break
+                    case "B2":
+                        desc = "Waiting for EV"
+                        break
+                    case "C1":
+                        desc = "EV Ready to Charge"
+                        break
+                    case "C2":
+                        desc = "Charging"
+                        break
+                    case "F":
+                        desc = "Fault"
+                        break
+                }
+
+                sendEvent(name:"chargeStatus",
+                    value:datavalue,
+                    descriptionText:desc)
+                break
+            case ("zmo")    :
+                def desc = ""
+                switch (datavalue) {
+                    case 1:
+                        desc = "${device.displayName} is in FAST mode"
+                        break
+                    case 2:
+                        desc = "${device.displayName} is in ECO mode"
+                        break
+                    case 3:
+                        desc = "${device.displayName} is in ECO+ mode"
+                        break
+                    case 4:
                         desc = "${device.displayName} is STOPPED"
                         break
                 }
@@ -286,7 +386,7 @@ def parseEddiData(eddiMap) {
                     descriptionText:desc)
 
                 // calculate the switch setting from the status - 6 is OFF , everything else is ON
-                def onList = [1,3,4,5]
+                def onList = [1,2,3]
                 def devSwitchState = device.currentValue("switch")
                 if (onList.contains (datavalue)) {
                     if (devSwitchState == "off" | devSwitchState == null) {
@@ -302,20 +402,6 @@ def parseEddiData(eddiMap) {
                     }
                 }
                 break
-            case ("vol"):
-                sendEvent(name:"voltage",
-                    value:datavalue / 10,
-                    unit:"V")
-                break
-            case ("che"):
-                sendEvent(name:"energy",
-                    value:datavalue,
-                    unit:kWh)
-                break
-            case ("tp1"):
-                sendEvent(name:"temperature",
-                    value:datavalue,
-                    unit:"C")
         }
     }
 }
@@ -325,10 +411,11 @@ def refresh() {
     poll(true)
 }
 
-def scheduledBoost(heater,slot,startTime,duration,monday,tuesday,wednesday,thursday,friday,saturday,sunday) {
+// TODO - need to confirm the command via proxy
+def scheduledBoost(slot,startTime,duration,monday,tuesday,wednesday,thursday,friday,saturday,sunday) {
     trace("Running scheduledBoost")
     // setting a scheduled boost takes the parameters, checks the format of the time strings and combines
-    // day flags into a string for submission to the eddi
+    // day flags into a string for submission to the zappi
     // NOTE: this command does not change the e sense or temperature flags - these must still be set manually in the required slot
 
     int startTimeInt = startTime as Integer
@@ -350,25 +437,10 @@ def scheduledBoost(heater,slot,startTime,duration,monday,tuesday,wednesday,thurs
         convertWordToFlag(thursday)+convertWordToFlag(friday)+convertWordToFlag(saturday)+convertWordToFlag(sunday)
     debug("dayString=${dayString}")
 
-    // create the heater code (heater 1 / 2 = 1 / 2 or relay 1 / 2 = 5 /6)
-    debug("heater=${heater}")
-    def heaterchar = ""
-    
-    switch (heater) {
-        case "Heater 1": heaterchar = 1
-            break
-        case "Heater 2": heaterchar = 2
-            break
-        case "Relay 1": heaterchar = 5
-            break
-        case "Relay 2": heaterchar = 6
-            break
-    }
-
-    def slotcode = "${heaterchar}${slot}"
+    def slotcode = "1${slot}"
 
     // combine the parameters into the asnPath string
-    def asnPath = "/cgi-boost-time-E${device.deviceNetworkId}-${slotcode}-${startTime}-${duration}-0${dayString}"
+    def asnPath = "/cgi-boost-time-Z${device.deviceNetworkId}-${slotcode}-${startTime}-${duration}-0${dayString}"
     debug("asnPath=${asnPath}")
     // and run the command to update the boost slot
     boostTimes = parent.pollASNServer(asnPath)
@@ -383,32 +455,13 @@ private String convertWordToFlag(word) {
     }
 }
 
-def removeScheduledBoost(heater,slot) {
+def removeScheduledBoost(slot) {
     trace("Running removeScheduledBoost")
-    // create the heater code (heater 1 / 2 = 1 / 2 or relay 1 / 2 = 5 /6)
-    debug("heater=${heater}")
-    def heaterchar = ""
     
-    switch (heater) {
-        case "Heater 1": heaterchar = 1
-            break
-        case "Heater 2": heaterchar = 2
-            break
-        case "Relay 1": heaterchar = 5
-            break
-        case "Relay 2": heaterchar = 6
-            break
-    }
-
-    def slotcode = "${heaterchar}${slot}"
+    def slotcode = "1${slot}"
 
     // combine the parameters into the asnPath string
     def asnPath = "/cgi-boost-time-E${device.deviceNetworkId}-${slotcode}-0000-000-00000000"
     debug("asnPath=${asnPath}")
     boostTimes = parent.pollASNServer(asnPath)
 }
-
-/*def getLatestData() {         // replaced by refresh command
-    trace("Running getLatestData")
-    poll(true)
-}*/

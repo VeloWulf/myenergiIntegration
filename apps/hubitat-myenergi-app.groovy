@@ -48,7 +48,9 @@ def getChildTypeName (group) {
         case "harvi":
             return "myenergi harvi device"
             break
-        
+        case "libbi":
+            return "myenergi libbi device"
+            break
     }
 }
 
@@ -70,6 +72,7 @@ def mainPage() {
     }
 
     //TODO improve the pages and add header footer with paypal links
+    //TODO add priority settings for the selected devices (sets the pri flag per device - need to obtain command via proxy)
 }
 
 def devicePage() {
@@ -124,7 +127,7 @@ def getDeviceList() {
     //def devicesList = []
     def devicesList = []
     def newASN = ""
-    //def desiredDevices = ["eddi","zappi","harvi"]  // other key values are returned but we only want the main device types in the list
+    //def desiredDevices = ["eddi","zappi","harvi","libbi"]  // other key values are returned but we only want the main device types in the list
 
     // the returned values are in nested maps so we need to parse out the values
     eddiMap = state.eddi
@@ -139,17 +142,25 @@ def getDeviceList() {
     zappiMap = state.zappi
     logDebug("zappimap size = ${zappiMap.size}")
     if (zappiMap.size > 0) {
-        eddiMap.each {valuesMap ->
+        zappiMap.each {valuesMap ->
             logDebug("ValuesMap = $valuesMap}")
             devicesList << "zappi (serial number:${valuesMap.sno})"
         }
     }
     harviMap = state.harvi
     logDebug("harvimap size = ${harviMap.size}")
-    if (zappiMap.size > 0) {
-        eddiMap.each {valuesMap ->
+    if (harviMap.size > 0) {
+        harviMap.each {valuesMap ->
             logDebug("ValuesMap = $valuesMap}")
             devicesList << "harvi (serial number:${valuesMap.sno})"
+        }
+    }
+    libbiMap = state.harvi
+    logDebug("libbimap size = ${harviMap.size}")
+    if (libbiMap.size > 0) {
+        libbiMap.each {valuesMap ->
+            logDebug("ValuesMap = $valuesMap}")
+            devicesList << "libbi (serial number:${valuesMap.sno})"
         }
     }
 
@@ -162,6 +173,7 @@ def parseAllDevices (devicesToParse) {
     state.eddi = devicesToParse[0].eddi
     state.zappi = devicesToParse[1].zappi
     state.harvi = devicesToParse[2].harvi
+    state.libbi = devicesToParse[3].libbi
 }
 
 // This function will interrogate the Director server and obtain the ASN for commands
@@ -195,19 +207,28 @@ def getASN() {
 
     // finish by passing the digest token to the director server and obtaining the ASN server from the header
     try {
-        httpGet(cmdParams) {resp -> 
-            if (resp.success) {
-                log.error "Unxpected succesful call to director server - please troubleshoot"
-                return null
+        httpGet(cmdParams) {resp->
+            if(resp.success) {
+                logDebug("Response = ${resp.data}")
+                logDebug("Headers1 = ${resp?.getAllHeaders()}")
+                                
+                latestASN = resp.headers.'X_myenergi-asn'
+                logDebug("LatestASN = ${latestASN}")
+
+                if(latestASN) {
+                    state.latestASN = latestASN
+                    return latestASN   
+                }    
             }
         }
     }
+
     catch (Exception e) {
         logDebug("AuthMap Response Status = ${e.getResponse().getStatus()}")
         logDebug("AuthMap Response Headers = ${e.getResponse().getAllHeaders()}")
 
         if(e.getResponse().getStatus() == 401) {
-            // this 401 should happen even though auth has been successful
+            // this 401 may happen even though auth has been successful
             latestASN = e.getResponse().headers.'X_myenergi-asn'
             logDebug("LatestASN = ${latestASN}")
 
@@ -231,7 +252,7 @@ def getAuthMap(cmdParams) {
         httpGet(cmdParams) {resp -> 
             if (resp.success) {
                 // this should never happen - we are expecting a 401
-                log.error "Unxpected succesful authmap call to server - please troubleshoot"
+                log.error "Unexpected succesful authmap call to server - please troubleshoot"
                 return null
             }
         }
@@ -532,7 +553,7 @@ def pollAllDevices () {
     logDebug("Devices returned= ${allDevices}")
     allDevices.each {
         // tell the child device to update from the stored state values
-        it.poll(false,updateMap[0].eddi,updateMap[1].zappi,updateMap[2].harvi)
+        it.poll(false,updateMap[0].eddi,updateMap[1].zappi,updateMap[2].harvi,updateMap[3].libbi)
     }
 
 }

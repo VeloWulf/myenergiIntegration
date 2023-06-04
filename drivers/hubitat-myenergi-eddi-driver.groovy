@@ -15,8 +15,7 @@
  *  Date          Comments
  *  2021-10-06	  Initial version
  *  2022-06-22    Update to manual boost to reflect that API is currently restricted to a 60 minute boost only
- *  2023-06-04    Left in place for backwards compatibility - no further development will take place on this driver
- *                DRIVER function moved to hubitat-myenergi-zappi-driver.groovy
+ *  2023-06-04    Added priority attribute and made some bug fixes
  *
  */
 
@@ -52,6 +51,7 @@
             // attribute "gridWatts", "number"
             attribute "remainingBoost", "number"
             attribute "status", "number"
+            attribute "priority", "number"
     
             // command "getLatestData"
             command "manualBoost", [
@@ -138,7 +138,7 @@ def updated() {
     state.boost = parent.pollASNServer("/cgi-boost-time-E${device.deviceNetworkId}")
 }
 
-def poll(updateData = false, eddiMap = null, zappiMap = null, harviMap = null) {
+def poll(updateData = false, eddiMap = null, zappiMap = null, harviMap = null, libbiMap = null) {
     trace("Polling device data")
     
     debug("updateData=${updateData}")    
@@ -310,12 +310,18 @@ def parseEddiData(eddiMap) {
             case ("che"):
                 sendEvent(name:"energy",
                     value:datavalue,
-                    unit:kWh)
+                    unit:"kWh")
+                break
+            case ("pri"):
+                sendEvent(name:"priority",
+                    value:datavalue,
+                    descriptionText:"${device.displayName} has a priority of ${datavalue}")
                 break
             case ("tp1"):
                 sendEvent(name:"temperature",
                     value:datavalue,
                     unit:"C")
+                break
         }
     }
 }
