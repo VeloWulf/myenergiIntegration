@@ -14,6 +14,7 @@
  *
  *  Date          Comments
  *  2023-06-04	  Initial version
+ *  2023-06-09    Added setPriority and minGreenLevel commands
  *
  */
 
@@ -86,6 +87,12 @@
             command "chargeMode", [
                 [name:"mode", description:"Choose the charging mode",
                     type:"ENUM", constraints:["FAST","ECO","ECO+","STOP"]]
+            ]
+            command "minimumGreenLevel", [
+                [name:"greenLevel", description:"1-100", type:"NUMBER"]
+            ]
+            command "setPriority", [
+                [name:"toPriority", description:"1-3", type:"NUMBER"]
             ]
         }
  
@@ -465,4 +472,24 @@ def removeScheduledBoost(slot) {
     def asnPath = "/cgi-boost-time-Z${device.deviceNetworkId}-${slotcode}-0000-000-00000000"
     debug("asnPath=${asnPath}")
     boostTimes = parent.pollASNServer(asnPath)
+}
+
+def minimumGreenLevel(greenLevel) {
+    trace("Running minimumGreenLevel")
+    
+    def serial = device.deviceNetworkId
+    
+    debug("Command being issued = /cgi-set-min-green-Z${serial}-${greenLevel}")
+    info("Setting ${device.displayName} to a minimum green level of ${greenLevel}")
+    response = parent.pollASNServer("/cgi-set-min-green-Z${serial}-${greenLevel}")
+}
+
+def setPriority(toPriority) {
+    trace("Running setPriority")
+
+    def serial = device.deviceNetworkId
+
+    debug("Command being issued = /cgi-set-priority-Z${serial}-${toPriority}")
+    info("Setting ${device.displayName} priority to ${toPriority}")
+    response = parent.pollASNServer("/cgi-set-priority-Z${serial}-${toPriority}")
 }

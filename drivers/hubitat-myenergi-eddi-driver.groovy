@@ -16,6 +16,7 @@
  *  2021-10-06	  Initial version
  *  2022-06-22    Update to manual boost to reflect that API is currently restricted to a 60 minute boost only
  *  2023-06-04    Added priority attribute and made some bug fixes
+ *  2023-06-09    Added setPriority command
  *
  */
 
@@ -83,6 +84,9 @@
                     type:"ENUM", constraints:["Heater 1","Heater 2","Relay 1","Relay 2"]],
                 [name:"slot", description:"Select the schedule slot to cancel",
                     type:"ENUM", constraints:[1,2,3,4]]
+            ]
+            command "setPriority", [
+                [name:"toPriority", description:"1-3", type:"NUMBER"]
             ]
         }
  
@@ -418,3 +422,13 @@ def removeScheduledBoost(heater,slot) {
     trace("Running getLatestData")
     poll(true)
 }*/
+
+def setPriority(toPriority) {
+    trace("Running setPriority")
+    
+    def serial = device.deviceNetworkId
+    
+    debug("Command being issued = /cgi-set-priority-E${serial}-${toPriority}")
+    info("Setting ${device.displayName} priority to ${toPriority}")
+    response = parent.pollASNServer("/cgi-set-priority-E${serial}-${toPriority}")
+}
