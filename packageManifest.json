@@ -3,7 +3,8 @@
   "author": "Paul Hutton",
   "version": "0.2.1",
   "minimumHEVersion": "2.2.5",
-  "dateReleased": "2023-06-04",
+  "dateReleased": "2023-06-09",
+  "releaseNotes": "Added the ability to set priority for each device, and the minimum green level for the zappi",
   "apps": [
     {
       "id": "9cd5d0f0-9244-42ec-ac69-bf5c5fbe8270",
