@@ -15,6 +15,7 @@
  *  Date          Comments
  *  2023-06-04	  Initial version
  *  2023-06-09    Added setPriority and minGreenLevel commands
+ *  2023-06-10    Introduced lastChargeMode state variable - used to return the zappi back to prior charge state when it is switched on
  *
  */
 
@@ -166,6 +167,7 @@ def poll(updateData = false, eddiMap = null, zappiMap = null, harviMap = null, l
 
     // update the state boost variable with the current boost settings
     state.boost = parent.pollASNServer("/cgi-boost-time-Z${device.deviceNetworkId}")
+    
 
 }
 
@@ -212,12 +214,23 @@ def smartBoost(additionalCharge, timeComplete) {
 
 def on() {
     trace("On is running")
-    chargeMode("ECO")
+    def currentStatus = device.currentValue("switch")
+    if (currentStatus == 'off') {
+        info("Switching ${device.displayName} ON")
+        if (state.lastChargeMode) {
+            chargeMode(state.lastChargeMode) // will turn on the zappi using the charge mode used prior to being turned off (or set to STOP)
+        } else {
+            chargeMode("ECO") // switches on the zappi using the default ECO mode if the lastChargeMode doesn't exist
+        }
+    }
 }
 
 def off() {
     trace("Off is running")
-    chargeMode("STOP")
+    def currentStatus = device.currentValue("switch")
+    if (currentStatus == 'on') {
+        chargeMode("STOP")
+    }
 }
 
 def chargeMode (mode) {
@@ -377,12 +390,15 @@ def parseZappiData(zappiMap) {
                 switch (datavalue) {
                     case 1:
                         desc = "${device.displayName} is in FAST mode"
+                        state.lastChargeMode="FAST"
                         break
                     case 2:
                         desc = "${device.displayName} is in ECO mode"
+                        state.lastChargeMode="ECO"
                         break
                     case 3:
                         desc = "${device.displayName} is in ECO+ mode"
+                        state.lastChargeMode="ECO+"
                         break
                     case 4:
                         desc = "${device.displayName} is STOPPED"
