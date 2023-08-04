@@ -17,3 +17,26 @@ INSTRUCTIONS FOR USE:
 5. The devices connected to your hub should be present in the drop down - select the device(s) that you want to manage
 6. Choose a refresh rate for the devices. This defaults to 15 minutes, which reduces the load on the hub and the myenergi servers
 7. Click 'DONE' and the app will create the devices
+
+Eddi Status Values:   1 = PAUSED
+                      3 = DIVERTING ENERGY
+                      4 = BOOSTING
+                      5 = has reached MAXIMUM TEMPERATURE
+                      6 = STOPPED
+
+Zappi Status Values:  1 = PAUSED
+                      3 = CHARGING
+                      5 = COMPLETE
+
+Zappi Charge Status Values:   A = EV Disconected
+                              B1 = EV Connected
+                              B2 = Waiting for EV
+                              C1 = EV ready to charge
+                              C2 = Charging
+                              F = Fault
+
+Zappi Mode Values:    1 = FAST mode
+                      2 = ECO mode
+                      3 = ECO+ mode
+                      4 = STOPPED
+                    

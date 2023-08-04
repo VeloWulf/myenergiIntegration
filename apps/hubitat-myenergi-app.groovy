@@ -148,6 +148,7 @@ def getDeviceList() {
             devicesList << "zappi (serial number:${valuesMap.sno})"
         }
     }
+    /* code to add both harvi and libbi to the list of devices once the drivers have been written
     harviMap = state.harvi
     logDebug("harvimap size = ${harviMap.size}")
     if (harviMap.size > 0) {
@@ -156,14 +157,15 @@ def getDeviceList() {
             devicesList << "harvi (serial number:${valuesMap.sno})"
         }
     }
-    libbiMap = state.harvi
-    logDebug("libbimap size = ${harviMap.size}")
+    libbiMap = state.libbi
+    logDebug("libbimap size = ${libbiMap.size}")
     if (libbiMap.size > 0) {
         libbiMap.each {valuesMap ->
             logDebug("ValuesMap = $valuesMap}")
             devicesList << "libbi (serial number:${valuesMap.sno})"
         }
     }
+*/
 
     logDebug(devicesList)
     return devicesList   
