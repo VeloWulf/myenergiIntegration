@@ -3,14 +3,14 @@
   "author": "Paul Hutton",
   "version": "0.2.3",
   "minimumHEVersion": "2.2.5",
-  "dateReleased": "2023-06-10",
-  "releaseNotes": "Bug fix in app when connecting system containing harvi",
+  "dateReleased": "2023-08-15",
+  "releaseNotes": "Small UI tweak",
   "apps": [
     {
       "id": "9cd5d0f0-9244-42ec-ac69-bf5c5fbe8270",
       "name": "myenergi Device Integration",
       "namespace": "velowulf",
-      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.2.3/apps/hubitat-myenergi-app.groovy",
+      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.2.4/apps/hubitat-myenergi-app.groovy",
       "required": true,
       "oauth": false,
       "primary": false
@@ -21,14 +21,14 @@
       "id": "d0d3b94b-6189-433b-b862-a55ad9003d2e",
       "name": "myenergi eddi device",
       "namespace": "velowulf",
-      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.2.3/drivers/hubitat-myenergi-eddi-driver.groovy",
+      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.2.4/drivers/hubitat-myenergi-eddi-driver.groovy",
       "required": true
     },
     {
       "id": "f37a7fa9-1b29-49c8-b0b2-e50d3e1736c3",
       "name": "myenergi zappi device",
       "namespace": "velowulf",
-      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.2.3/drivers/hubitat-myenergi-zappi-driver.groovy",
+      "location": "https://raw.githubusercontent.com/VeloWulf/myenergiIntegration/0.2.4/drivers/hubitat-myenergi-zappi-driver.groovy",
       "required": true
     }
   ]

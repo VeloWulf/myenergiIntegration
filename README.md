@@ -3,6 +3,7 @@ App and driver using the myenergi API to control their product line via Hubitat
 
 Changelog:
   2023-06-04  Added zappi driver and resolved bugs in director call in the app
+  2023-08-15  Small UI tweak
   
 ** NOTE: version 0.2.0 of this driver uses a different driver file to create the eddi driver. The old file has been left in place for backwards compatibility so that HPM doesn't remove it. Theoretically, the device using the old driver shouldn't be updated by future runs of the app so it should continue to function as it has but haven't done a great deal of testing on this due to lack of time
 

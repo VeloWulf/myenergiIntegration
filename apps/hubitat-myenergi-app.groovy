@@ -62,9 +62,10 @@ def mainPage() {
     
     //dynamicPage(name:"HubLoginDetails",title:"myenergi Login Details",,install:true,uninstall:true) {
     dynamicPage(name:"HubLoginDetails",title:"myenergi Login Details",nextPage:"devicePage",install:false,uninstall:true) {
-        section ("Login Details") {
-            input "hubUsername", "text", title:"Enter User Name:", required:true
-            input "hubPassword", "password", title:"Enter Password", required:true
+        // section ("Login Details") {
+        section {
+            input "hubUsername", "text", title:"Enter Hub Serial Number:", required:true
+            input "hubPassword", "password", title:"Enter API Key <a style='font-size:11px;' href='https://support.myenergi.com/hc/en-gb/articles/5069627351185-How-do-I-get-an-API-key-' target='_blank'>(How do I get an API key?)</a>", required:true
             input "debugOutput", "bool", title: "Enable debug logging", defaultValue: false
         }
         
