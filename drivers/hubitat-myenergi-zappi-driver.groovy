@@ -16,6 +16,7 @@
  *  2023-06-04	  Initial version
  *  2023-06-09    Added setPriority and minGreenLevel commands
  *  2023-06-10    Introduced lastChargeMode state variable - used to return the zappi back to prior charge state when it is switched on
+ *  2023-08-27    Bugfix: zappiMode attribute noot being written correctly
  *
  */
 
@@ -332,7 +333,7 @@ def parseZappiData(zappiMap) {
                         desc = "${device.displayName} is PAUSED"
                         break
                     case 3:
-                        desc = "${device.displayName} is charging"
+                        desc = "${device.displayName} is CHARGING"
                         break
                     case 5:
                         desc = "${device.displayName} is COMPLETE"
@@ -405,7 +406,7 @@ def parseZappiData(zappiMap) {
                         break
                 }
 
-                sendEvent(name:"status",
+                sendEvent(name:"zappiMode",
                     value:datavalue,
                     descriptionText:desc)
 
