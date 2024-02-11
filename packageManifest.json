@@ -1,10 +1,10 @@
 {
   "packageName": "myenergi Integration",
   "author": "Paul Hutton",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "minimumHEVersion": "2.2.5",
-  "dateReleased": "2023-08-15",
-  "releaseNotes": "Bugfix in zappiMode attribute",
+  "dateReleased": "2024-02-11",
+  "releaseNotes": "BUGFIX: Reordering of the devices in the array returned from the myenergi API that was preventing the zappi data",
   "apps": [
     {
       "id": "9cd5d0f0-9244-42ec-ac69-bf5c5fbe8270",

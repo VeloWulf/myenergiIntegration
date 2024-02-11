@@ -133,20 +133,25 @@ def getDeviceList() {
 
     // the returned values are in nested maps so we need to parse out the values
     eddiMap = state.eddi
-    logDebug("eddiMap = ${eddiMap}")
-    logDebug("eddimap size = ${eddiMap.size}")
-    if (eddiMap.size > 0) {
-        eddiMap.each {valuesMap ->
-            logDebug("ValuesMap = $valuesMap}")
-            devicesList << "eddi (serial number:${valuesMap.sno})"
+    if (eddiMap) {
+        logDebug("eddiMap = ${eddiMap}")
+        logDebug("eddimap size = ${eddiMap.size}")
+        if (eddiMap.size > 0) {
+            eddiMap.each {valuesMap ->
+                logDebug("ValuesMap = $valuesMap}")
+                devicesList << "eddi (serial number:${valuesMap.sno})"
+            }
         }
     }
     zappiMap = state.zappi
-    logDebug("zappimap size = ${zappiMap.size}")
-    if (zappiMap.size > 0) {
-        zappiMap.each {valuesMap ->
-            logDebug("ValuesMap = $valuesMap}")
-            devicesList << "zappi (serial number:${valuesMap.sno})"
+    if (zappiMap) {
+        logDebug("zappiMap = ${zappiMap}")
+        logDebug("zappimap size = ${zappiMap.size}")
+        if (zappiMap.size > 0) {
+            zappiMap.each {valuesMap ->
+                logDebug("ValuesMap = $valuesMap}")
+                devicesList << "zappi (serial number:${valuesMap.sno})"
+            }
         }
     }
     /* code to add both harvi and libbi to the list of devices once the drivers have been written
@@ -172,13 +177,22 @@ def getDeviceList() {
     return devicesList   
 }
 
-def parseAllDevices (devicesToParse) {
+def parseAllDevices (devicesToParse) {      // sort order updated Feb '24' to be alphabetical 
+//TO DO: figure out how to seach for the index to prevent future reordering breaking the code
+    trace("Parsing all devices")
+    state.eddi = devicesToParse[0].eddi
+    state.zappi = devicesToParse[3].zappi
+    state.harvi = devicesToParse[1].harvi
+    state.libbi = devicesToParse[2].libbi
+}
+
+/*def parseAllDevices (devicesToParse) {
     trace("Parsing all devices")
     state.eddi = devicesToParse[0].eddi
     state.zappi = devicesToParse[1].zappi
     state.harvi = devicesToParse[2].harvi
     state.libbi = devicesToParse[3].libbi
-}
+}*/
 
 // This function will interrogate the Director server and obtain the ASN for commands
 def getASN() {

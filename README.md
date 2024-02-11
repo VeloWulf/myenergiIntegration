@@ -1,10 +1,6 @@
 # myenergiIntegration
 App and driver using the myenergi API to control their product line via Hubitat
 
-Changelog:
-  2023-06-04  Added zappi driver and resolved bugs in director call in the app
-  2023-08-15  Small UI tweak
-  
 ** NOTE: version 0.2.0 of this driver uses a different driver file to create the eddi driver. The old file has been left in place for backwards compatibility so that HPM doesn't remove it. Theoretically, the device using the old driver shouldn't be updated by future runs of the app so it should continue to function as it has but haven't done a great deal of testing on this due to lack of time
 
 INSTALL AT YOUR OWN RISK: I have done a fair bit of testing on the majority of the function(s) of both drivers but as with everything the real stuff only gets discovered when it hits real world. If you come across any bugs then firstly I apologise and, secondly, I would ask you to raise them with me either via github or on the Hubitat community forum. I make no guarantees that it won't affect your hub operation or casuse something to fail so as always I suggest that you make a backup before installing.
@@ -41,3 +37,7 @@ Zappi Mode Values:    1 = FAST mode
                       3 = ECO+ mode
                       4 = STOPPED
                     
+Changelog:
+  2023-06-04  Added zappi driver and resolved bugs in director call in the app
+  2023-08-15  Small UI tweak
+  2024-02-11  0.2.6 BUGFIX - ordering of data returned from API
